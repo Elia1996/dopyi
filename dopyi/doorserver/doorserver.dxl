@@ -1,0 +1,72 @@
+/*Local DOORS script, receive DXL command through socket, execute and return
+Author: Elia Ribaldone, ribaldoneelia@gmail.com
+Date: 15/11/2021
+*/
+
+// batchserver.dxl
+IPC ipc = server CONNECTION_PORT
+string request
+
+//INCLUDE_LIB_DOORSERVER
+#include <lib_doorserver.dxl>
+
+// Global variables
+Module m
+Skip L_MOD = create // This is the skip of all modules used
+
+string s = ""
+string s_1 = ""
+string s_2 = ""
+string s_3 = ""
+string s_4 = ""
+string s_5
+string s_6
+History h
+Object o
+AttrType at
+AttrDef ad
+
+//PRINT_LINE "Alive\n"
+
+/* add functions for you interface here */
+while (true) {
+    if (accept(ipc)) {
+		//print "Accepted\n"
+        if (!recv(ipc, request)) {
+            warn "Server has disconnected"
+            break
+        }
+    } else {
+        warn "error accepting client connection"
+        break
+    }
+
+    //PRINT_LINE request "\n"
+	
+    errors = false
+    if (request == "shutdown_") {
+        send(ipc, "done_")
+        break
+    }
+
+    if (request == "errors_")
+        break
+
+    if (request == "quit_")
+        continue
+
+    m = current Module
+
+    ans = eval_ request
+
+
+    //PRINT_LINE ans "\n"
+	
+    /*
+    if (ans == "errors in eval_ string") {
+        print "errors in request\n"
+    }*/
+
+    send(ipc, ans)
+    disconnect(ipc)
+}

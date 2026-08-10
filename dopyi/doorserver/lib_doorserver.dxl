@@ -1,0 +1,1241 @@
+/*Library of dxl functions that can be used in
+a dxl script that return directly to python through socket interface
+Author: Elia Ribaldone, ribaldoneelia@gmail.com
+Date: 15/11/2021
+*/
+/*
+	string trim(string &s) 
+		-  strip in python
+	
+	
+	
+*/
+pragma runLim,0
+
+//-----------------------------------------------------------------------------
+// Trim functions -- delete heading and trailing spaces in passed string.
+//-----------------------------------------------------------------------------
+string rightTrim(string s) {
+	if ( null(s) ) 
+		return "";
+
+	int FIRST = 0; // constant left edge
+	int last = length(s) - 1; // initial right edge
+
+	// Starting from the right edge, hop over white space (if any)
+	// Just don't fall off the left edge.
+
+	while ( (last > -1) && (isspace(s[last])) ) {
+		last--;
+	}
+	return s[FIRST:last]; // return substring with (possibly) modified last
+}
+
+string leftTrim(string s) {
+	if (null(s)) 
+		return "";
+	int first = 0; // initial left edge
+	int LAST = length(s) - 1; // constant right edge
+
+	// Starting from the left edge, hop over white space (if any)
+	// Just don't fall off the right edge.
+
+	while ( (isspace(s[first])) && (first < LAST) ) {
+		first++;
+	}
+
+return s[first:LAST]; // return substring with (possibly) modified first
+
+}
+
+string trim(string &s) {
+	// As strip in python
+	
+	// stringsDeRef = s // Maybe 9.5 needs it explicitly dereferenced???
+	//return leftTrim( rightTrim(sDeRef) );
+	return leftTrim( rightTrim(s) );
+}
+
+Skip split( string s, char c ) {
+    Skip split_string = create();
+    int deb = 0; int i; int index = 0;
+    for ( i=0; i<length(s)-1; i++ ) {
+      if ( s[i] != c ) continue;
+      put( split_string, index, s[deb:i-1] );
+      deb = i+1; index += 1;
+    }
+	if ( s[i] == c ) i--;
+    put( split_string, index, s[deb:i] );
+    return(split_string);
+}
+
+string split_get(string s, char divider, int index){
+	Skip ll = split(s, divider)
+	string value;
+	if(find(ll, index, value)){
+		return value
+	}
+	return ""
+}
+
+
+string std_mod_name(ModuleVersion mv){
+	string vstring = versionString(mv)
+	string mod_name = fullName(module(mv))
+	if (vstring == ""){
+		return mod_name
+	}
+	string s_version = split_get(vstring, ' ', 0)
+	string s_suffix = split_get(split_get(split_get(vstring, ' ', 1), '(', 1), ')', 0)
+	if (s_suffix != ""){
+		return mod_name "@" s_suffix "_" s_version
+	}
+	else{
+		return mod_name "@" s_version
+	}
+
+}
+
+
+string get_source(LinkRef lref){
+	ModuleVersion mv = sourceVersion lref
+	return std_mod_name(mv)
+}
+
+string get_target(Link lref){
+	ModuleVersion mv = targetVersion lref
+	return std_mod_name(mv)
+}
+
+string get_modname_from_url(string url){
+	string result = null
+	ModuleVersion mv
+	int objectAbsno
+	Item i 
+	string dbHost = null
+	int dbPort
+	string dbName
+	string dbID = null
+	result = decodeURL(url, dbHost, dbPort, dbName, dbID, i, mv, objectAbsno)
+	if (result == null){
+		return std_mod_name(mv)
+	}
+	return "Error:Invalid URL"
+}
+
+
+string get_obj_url(Module m, int absno){
+	Object o = object(absno, m)
+	if (o == null){
+		return "False"
+	}
+	return getURL(o)
+}
+
+
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Module function 
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+string modGetInfo(Module m, string s_divisor){
+	/* This function return information about the module (s_divisor=#):
+    	KEY:prefix # CUST_REQ_ # KEY:last_modified_on # 11/09/22 #
+	*/
+	string s_ret = ""
+	s_ret = "KEY:prefix" s_divisor
+	s_ret = s_ret m."prefix" s_divisor
+	s_ret = s_ret "KEY:last_modified_on" s_divisor
+	Date d = m."Last Modified On"
+	s_ret = s_ret stringOf(d, "dd/MM/yy") s_divisor
+	string mod_url = getURL(m)
+	s_ret = s_ret "KEY:module_url" s_divisor mod_url s_divisor
+	return s_ret
+}
+
+string modGetAttributeList(Module m, int from, string s_divisor){
+	string objAttrName
+	string msg = ""
+	AttrDef ad
+	//string objAttrName
+	int len = 0
+	int i = 0
+	for ad in m do {
+		if ( ad.object == true ){
+			if ( i >= from ){
+				msg = msg ad.name s_divisor
+				len = length(msg)
+				if ( len > 1800 ){
+					msg = msg "KEY:more" s_divisor
+					break
+				}
+			}
+			i = i + 1
+		}
+	}
+	return msg
+}
+
+
+string modGetAttributeColValues(Module m, string s_attr_name, string s_divisor){
+	string msg = ""
+	Object o
+	for o in m do {
+		msg = msg o.s_attr_name " " s_divisor
+	}
+	return msg 
+}
+
+string modGetModifiedObject(Module m, string s_last_load_data, string s_divisor){
+	/* This function return the list of absno of object which was changed
+	after the s_last_load_data.
+	*/
+	string msg = ""
+	Date d_last_load = date(s_last_load_data, "dd/MM/yy")
+	Date d_o
+	Object o
+	for o in m do {
+		d_o = o."Last Modified On"
+		if ( d_o >= d_last_load )
+			msg = msg o."Absolute Number" s_divisor
+	}
+	return msg 
+}
+
+// this function count the element of a string
+int count(Skip skip){
+
+    if(null skip)
+        return 0
+
+    int i = 0
+
+    // Doesn't get assigned unless you do something like obj = obj within the loop
+    string obj = null 
+
+    for obj in skip do
+    {
+        i++
+    }
+
+    return i
+}
+
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Function on module m
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+string objGetInOutLink(Module m, int absno, string s_divisor){
+	/* This function return the list of in and out link in the following format:
+
+	*/
+	// Object to analyse
+	Object o = object(absno, m)
+	if ( o == null ){
+		return "Error:#1:Absolute number not found"
+	}
+	// Support variable
+	Link lnk
+	LinkRef lnkRef
+	ExternalLink extlnk
+	Module m_sup
+	int i
+	ModName_ srcModRef
+	string s = ""
+
+	// Incoming link
+	for lnkRef in all (o<-"*") do {
+		s = s "KEY:in" s_divisor
+		// Link module
+		m_sup = module lnkRef
+		s = s fullName(m_sup) s_divisor
+		// Souce module
+		s = s get_source(lnkRef) s_divisor
+		// Source Absno
+		i = sourceAbsNo(lnkRef)
+		s = s i s_divisor
+	}
+	// Outgoing link
+	for lnk in all (o->"*") do {
+		s = s "KEY:out" s_divisor
+		// Link module
+		m_sup = module lnk
+		s = s fullName(m_sup) s_divisor
+		// Dest module
+		s = s get_target(lnk) s_divisor
+		// Dest Absno
+		i = targetAbsNo(lnk)
+		s = s i s_divisor
+	}
+	// External link
+	for extlnk in o->"" do {
+		s = s "KEY:ext" s_divisor
+		// Link name
+		s = s name(extlnk) s_divisor
+		// link description
+		s = s description(extlnk) s_divisor
+		// link url
+		s = s body(extlnk) s_divisor
+	}
+
+	return s
+}
+
+
+string objGetAttrDef(Module m, string s_attr, string s_divisor){
+	/* Return the data of the attribute like (s_divisor = "<#>")
+			Domain feedback<#>Enumeration<#>Accepted<#>Accepted with
+					Restriction<#>Not Accepted<#>Clarification Needed<#>
+					Change Responsible<#>Single<#>
+			Text<#>Text<#>
+	*/
+	string s_ret = ""
+
+	AttrDef ad = find(m, s_attr)
+	//print ad.defval "\n"
+	if (ad == null){
+		return "Error:#1AttributeNotFound"
+	}
+	AttrType at = null
+	AttrBaseType abt = null
+	int enumSize, i = 0
+	
+	s_ret = "KEY:type" s_divisor ad.typeName s_divisor
+	at = ad.type
+	abt = at.type
+	s_ret = s_ret "KEY:basetype" s_divisor stringOf(abt) s_divisor
+
+	if ( abt == attrEnumeration){
+		enumSize = at.size
+
+		s_ret = s_ret "KEY:l_enum" s_divisor
+		for (i=0; i< enumSize; i++){
+			s_ret = s_ret at.strings[i] s_divisor
+		}
+
+		s_ret = s_ret "KEY:multi" s_divisor
+		if (ad.multi){
+			s_ret = s_ret "True" s_divisor
+		}
+		else{
+			s_ret = s_ret "False" s_divisor	
+		}
+	}
+	return s_ret
+}
+
+string getAbsnoByAttr(Module m, string s_attr, string s_to_search){
+	Object o 
+	string a
+	for o in m do {
+		a = o.s_attr
+		if ( a == s_to_search){
+			a = o."Absolute Number"
+			return a
+		}
+	}
+	return "False"
+}
+
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Module function 
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+bool isModOpened(string s_mod){
+	/* Return true if the module is already opened
+	*/
+	Module m
+	for m in database do {
+		if (matches(s_mod,fullName(m))){
+			return true
+		}
+	}
+	return false
+}
+
+string get_modname(string mod){
+	Skip ll = split(mod, '@')
+	string value;
+	if(find(ll, 0, value)){
+		return value
+	}
+	return ""
+}
+
+string get_baselineid(string mod){
+	Skip ll = split(mod, '@')
+	string value;
+	if(find(ll, 1, value)){
+		return value
+	}
+	return ""
+}
+
+string get_suffix(string baselineid){
+	Skip ll = split(baselineid, '_')
+	string value;
+	if (count(ll) < 2){
+		return ""
+	}
+
+	if(find(ll, 0, value)){
+		return value
+	}
+	return ""
+}
+
+int get_major(string baselineid){
+	Skip ll = split(baselineid, '_')
+	string value;
+	int el = count(ll)-1
+
+	if(find(ll, el, value)){
+		Skip ll2 = split(value, '.')
+		if(find(ll2, 0, value)){
+			return intOf(value)
+		}
+	}
+	return 0
+}
+
+int get_minor(string baselineid){
+	Skip ll = split(baselineid, '_')
+	string value;
+	int el = count(ll)-1
+
+	if(find(ll, el, value)){
+		Skip ll2 = split(value, '.')
+		if(find(ll2, 1, value)){
+			return intOf(value)
+		}
+	}
+	return 0
+}
+
+
+Module getModule(string s_mod, int mode){
+	/* l_mods: skip of modules
+	 s_mod: module complete path
+	 mode: 1 -> write, 0 -> Read
+	*/
+	bool bl_open = false
+	s_mod_and_baseline = s_mod
+	s_mod = get_modname(s_mod_and_baseline)
+	string s_bsline = get_baselineid(s_mod_and_baseline)
+	string s_suffix = ""
+	int s_major = 0
+	int s_minor = 0
+	if ( s_bsline != "" ){
+		s_suffix = get_suffix(s_bsline)
+		s_major = get_major(s_bsline)
+		s_minor = get_minor(s_bsline)
+	}
+	Module m = null
+	if ( ! exists module s_mod )
+	    return m
+
+	Baseline bsline = null
+
+	if ( s_bsline != "" ){
+		if (mode == 1){
+			return m
+		}
+	}
+	// If the module is opened
+	if (open module s_mod){
+		Item i_mod = item s_mod
+		m = module(i_mod)
+		if ( mode == 1 ){
+			// write mode
+			if (! isEdit(m)) m = edit(s_mod, bl_open)
+		}
+		else{
+			// read mode
+			if (! isRead(m)) m = read(s_mod, bl_open)
+		}
+	}
+	else{
+		if ( mode == 1 ){
+			// write mode
+			m = edit(s_mod, bl_open)
+		}
+		else{
+			// read mode
+			m = read(s_mod, bl_open)
+		}
+	}
+
+	if ( null(m) ){ 
+	    return m
+	}
+	else{
+	    if ( mode == 1 ){
+			// write mode
+			if ( !canWrite(m) ) return m
+		}
+		else{
+			// read mode
+			if ( !canRead(m) ) return m
+		}
+	}
+	print "s_bsline: " s_bsline "\n"
+	if ( s_bsline != "" ){
+		print "openin baseline " s_bsline "\n"
+		bsline = baseline(s_major, s_minor, s_suffix)
+		bs_mod = load(m, bsline, bl_open)
+		m = bs_mod
+	}
+	filtering off
+	return m
+}
+
+string openModule(string s_mod, int mode){
+	/* l_mods: skip of modules
+	 s_mod: module complete path
+	 mode: 1 -> write, 0 -> Read
+	*/
+	bool bl_open = false
+	s_mod_and_baseline = s_mod
+	s_mod = get_modname(s_mod_and_baseline)
+	string s_bsline = get_baselineid(s_mod_and_baseline)
+	string s_suffix = ""
+	int s_major = 0
+	int s_minor = 0
+	if ( s_bsline != "" ){
+		s_suffix = get_suffix(s_bsline)
+		s_major = get_major(s_bsline)
+		s_minor = get_minor(s_bsline)
+	}
+	if ( ! exists module s_mod )
+	    return "Error:#1:Module " s_mod " doesn't exist."
+
+	Baseline bsline = null
+
+	if ( s_bsline != "" ){
+		if (mode == 1){
+			return "Error:#2:Module " s_mod " is a baseline, cannot be opened in write mode."
+		}
+	}
+	Module m = null
+	// If the module is opened
+	if (open module s_mod){
+		Item i_mod = item s_mod
+		m = module(i_mod)
+		if ( mode == 1 ){
+			// write mode
+			if (! isEdit(m)) m = edit(s_mod, bl_open)
+		}
+		else{
+			// read mode
+			if (! isRead(m)) m = read(s_mod, bl_open)
+		}
+	}
+	else{
+		if ( mode == 1 ){
+			// write mode
+			m = edit(s_mod, bl_open)
+		}
+		else{
+			// read mode
+			m = read(s_mod, bl_open)
+		}
+	}
+
+	if ( null(m) ){ 
+	    return "Error:#3:Null"
+	}
+	else{
+	    if ( mode == 1 ){
+			// write mode
+			if ( !canWrite(m) ) return "Error:#4:CantWrite"
+		}
+		else{
+			// read mode
+			if ( !canRead(m) ) return "Error:#5:CantRead"
+		}
+	}
+	if ( s_bsline != "" ){
+		bsline = baseline(s_major, s_minor, s_suffix)
+		bs_mod = load(m, bsline, bl_open)
+		current = bs_mod
+	}
+	else {
+		current = m
+	}
+	filtering off
+	return "Opened"
+}
+
+string closeModule(string s_mod){
+	/* Close the specified module inside l_mods using the key n_mod
+	*/
+	s_mod = get_modname(s_mod)
+	string s_bsline = get_baselineid(s_mod)
+	string s_suffix = ""
+	int s_major = 0
+	int s_minor = 0
+	if ( s_bsline != "" ){
+		s_suffix = get_suffix(s_bsline)
+		s_major = get_major(s_bsline)
+		s_minor = get_minor(s_bsline)
+	}
+
+	Item i_mod = item s_mod
+	Module m = module(i_mod)
+	if( m == null ){
+		return "Error:#1:Module " s_mod " doesn't exist."
+	}
+
+	if ( s_bsline != "" ){
+		Baseline bsline = baseline(s_major, s_minor, s_suffix)
+		m = load(m, bsline, false)
+	}
+
+	close(m)
+	return "Deleted"
+
+}
+
+string saveModule(string s_mod){
+	/* This function save a module if it is in edit mode
+	*/
+	s_mod = get_modname(s_mod)
+	string s_bsline = get_baselineid(s_mod)
+	string s_suffix = ""
+	int s_major = 0
+	int s_minor = 0
+	if ( s_bsline != "" ){
+		s_suffix = get_suffix(s_bsline)
+		s_major = get_major(s_bsline)
+		s_minor = get_minor(s_bsline)
+	}
+
+	if ( s_bsline != "" ){
+		return "Error:#2:Module " s_mod " is a baseline, cannot be saved."
+	}
+
+	Item i_mod = item s_mod
+	Module m = module(i_mod)
+
+	if( m == null ){
+		return "Error:#1:Module number " s_mod " doesn't exist."
+	}
+
+	if ( isRead m ) return "Error:#2:Module " s_mod " in read mode."
+	if ( isEdit m ){
+		save(m)
+		return "Saved"
+	}
+	return "Error:#3:Not Open Module " s_mod 
+}
+
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Get Functions
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+string getBaselines(Module m, string s_div){
+	/*Get the list of the baselines in the module
+	Args:
+		m -> module open in read mode
+		s_div -> list divider
+	Return:
+		string: <major> <divider> <minor> <divider> <suffix> <divider>
+	*/
+	Baseline bsline
+	string s_ret = ""
+	for bsline in m do {
+		s_ret = s_ret (major bsline) s_div
+		s_ret = s_ret (minor bsline) s_div
+		s_ret = s_ret (suffix bsline) s_div
+		s_ret = s_ret (annotation bsline) s_div
+		s_ret = s_ret (dateOf bsline) s_div
+		s_ret = s_ret (user bsline) s_div
+	}
+	return s_ret
+}
+
+
+string getAttributes(Module m, int absno, string l_attr[], string s_div){
+	/* Modify the value of a set of attr
+	Args:
+		m -> module open in edit mode
+		absno -> absno to modify
+		l_attr -> list of attribute names
+		div : list divider for returning string
+	Return:
+		list: l_attr values
+	*/
+	int i
+	string supp
+	int max = sizeof l_attr - 1
+
+	string s_ret = ""
+	Object o = object(absno, m)
+
+	for i in 0:max do{
+		// check for special attributes
+		if (l_attr[i] == "Object Level"){
+			supp = level(o) ""
+			s_ret = s_ret supp s_div
+		}
+		else{	
+			s_ret = s_ret o.l_attr[i] "" s_div
+		}
+	} 
+	return s_ret
+}
+
+
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Edit functions
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+string objCreateExtLink(Module m, int absno, string s_name, string s_descr,
+						string s_url){
+	/* Create an external link for the specified absno in module m
+	*/
+	// Object to use
+	Object o = object(absno, m)
+	if ( o == null ){
+		return "Error:#1:Absolute number not found"
+	}
+	ExternalLink el = null
+	// Create the link
+	string ErrMess = create(o, s_descr, s_name, outward, openAsURL, s_url, el)
+	if (null el)
+		return "False"
+	else
+		return "True"
+}
+
+string objDeleteExtLink(Module m, int absno, string s_name){
+	Object o = object(absno, m)
+	if ( o == null ){
+		return "Error:#1:Absolute number not found"
+	}
+	ExternalLink extlnk = null
+
+	for extlnk in o->"" do {
+		if (matches(name(extlnk), s_name)){
+			delete(extlnk)
+			return "True"
+		}
+	}
+	flushDeletions()
+	return "False"
+}
+
+
+string addLinkModuleDescriptor(string s_folder, string s_source,
+							   string s_target, string s_linkmod, string descr){
+	/* Add a link module descriptor
+	addLinkModuleDescriptor("/xxx_SYS_TestsProject", "/xxx_SYS_TestsProject/TestDoorsmod",
+							"/xxx_SYS_TestsProject/TestDoorsmod2",
+							"/xxx_SYS_TestsProject/satisfy",
+							"mod to satisfy")
+	*/
+	openModule(s_source, 1)
+	current = folder s_folder
+	Folder f = current Folder
+	string ret = addLinkModuleDescriptor(f, s_source, s_target, false, true,
+							             s_linkmod, descr)
+	if ( ret == null )
+		return "True"
+	return "False"
+}
+
+/*
+int cc[] = {1,2 , 3}
+//createLink("/xxx_SYS_TestsProject/TestDoorsmod2", 2, "/xxx_SYS_TestsProject/TestDoorsmod", cc, "/xxx_SYS_TestsProject/satisfy")
+
+deleteLink("/xxx_SYS_TestsProject/TestDoorsmod2", 2, "/xxx_SYS_TestsProject/TestDoorsmod", cc,"/xxx_SYS_TestsProject/satisfy")
+*/
+
+string createLinks(Module m, int source_absno,
+				   string s_m_target, int l_target_absno[],
+				   string s_m_link){
+	/* Create a link between two objects
+	s_m_link = fullpath of the link module
+	*/
+	int i
+	int max = sizeof l_target_absno - 1
+	Object o_source = object(source_absno, m)
+	if ( o_source == null ){
+		return "Error:#1:Absolute number not found in source mod"
+	}
+	Module m_target = getModule(s_m_target, 0)
+	if ( m_target == null ){
+		return "Error #2: Target mod not found"
+	}
+	Module m_link = getModule(s_m_link, 1)
+	if ( m_link == null ){
+		return "Error #3: Link mod not found"
+	}
+
+	for i in 0:max do {
+		Object o_target = object(l_target_absno[i], m_target)
+		if ( o_target == null ){
+			return "Error:#1:Absolute number not found in target mod"
+		}
+		o_source -> s_m_link -> o_target
+	}
+	current = m
+	return "True"
+}
+
+string deleteLinks(Module m, int source_absno,
+				   string s_m_target, int l_target_absno[],
+				   string s_m_link){
+	/* Delete a link between two objects
+	s_m_link = fullpath of the link module
+	*/
+	int i
+	int max = sizeof l_target_absno - 1
+	current = m
+	Object o_source = object(source_absno, m)
+	if ( o_source == null ){
+		return "Error:#1:Absolute number not found in source mod"
+	}
+	Module m_target = getModule(s_m_target, 0)
+	if ( m_target == null ){
+		return "Error #2: Target mod not found"
+	}
+	Link lref
+	ModName_ srcModRef
+	int absno = 0
+	for lref in all o_source->s_m_link do { 
+    	srcModRef = target lref
+		if (matches(get_target(lref), s_m_target)){
+			absno = targetAbsNo(lref)
+			for i in 0:max do {
+				if (absno == l_target_absno[i]){
+					delete(lref)
+					flushDeletions()
+				}
+			}
+		}
+	}
+	return "True"
+}
+
+string deleteAllObjLinks(Module m, int absno){
+	/* Delete all links from the specified object
+	*/
+	Object o = object(absno, m)
+	if ( o == null ){
+		return "Error:#1:Absolute number not found"
+	}
+	Link lref
+	ModName_ srcModRef
+	void ret
+	for lref in all o->"" do {
+		delete(lref)
+	}
+	flushDeletions()
+	return "True"
+}
+
+/*
+Module m
+Baseline b
+
+for m in database do {
+	b = baselineInfo(m)
+	if (b == null){
+		b = getMostRecentBaseline(m)
+		if (b == null){
+			print fullName(m) " No baselin" "\n"
+		}
+	}
+	if (b != null)
+		print fullName(m) "  " (major b) " " (minor b) "\n"
+}
+*/
+
+string makeBaseline(Module mm, bool increment_major,
+					string s_suffix, string s_annotation, string s_div){
+	/* Make a baseline of the module
+	Args:
+		m -> module to baseline
+		increment_major -> increment the major version, if false increment
+			the minor version
+		suffix -> suffix to add to the baseline name
+		annotation -> annotation to add to the baseline
+	*/
+	if ( mm == null ){
+		return "Error #2: Target mod not found"
+	}
+	if ( increment_major ){
+		create(nextMajor s_suffix, s_annotation)
+	}
+	else {
+		create(nextMinor s_suffix, s_annotation)
+	}
+	Baseline b = getMostRecentBaseline(mm)
+	int n_minor = minor(b)
+	int n_major = major(b)
+	s_suffix = suffix(b)
+
+	return "KEY:major" s_div n_major s_div "KEY:minor" s_div n_minor s_div  "KEY:suffix" s_div s_suffix s_div
+}
+
+
+
+string defAttr(Module m, string s_attrname, string s_type, string s_default, string s_multi){
+	/* Define an attribute
+	Args:
+		s_attrname -> name of the attribute
+		s_type -> name of the type to use
+		s_default -> default value of the attribute
+		s_multi -> if "True" the attribute enable multi selection
+	Return
+		"True"/"False" -> false if the type doesn't exist
+	*/
+	current = m
+	if ( ! exists attribute s_attrname ){
+		AttrType at = find(m, s_type)
+		// If the type doesn't exist
+		if (null at){
+			return "False"
+		}
+		if ( s_default == "" ){
+			if ( s_multi == "True"){
+				create type s_type multi true attribute s_attrname
+			}
+			else{
+				create type s_type attribute s_attrname
+	  		}
+		}
+		else{
+			if ( s_multi == "True"){
+				create type s_type (default s_default) multi true attribute s_attrname
+			}
+			else{
+				create type s_type (default s_default) attribute s_attrname
+	  		}
+		}
+	}
+	return "True"
+}
+
+string typeExists(Module m, string s_type){
+	/* Return True if the type exists.
+	Args:
+		s_type: name of the type
+	Returns:
+		string: True if the s_type exists. 
+	*/
+	current = m
+	AttrType at = find(m, s_type)
+	if (null at){
+		return "False"
+	}
+	return "True"
+}
+
+string defEnumType(Module m, string s_type, string names[], int values[], int colors[]){
+	/* Define an Enumeration Type:
+	Args:
+		m -> module open in edit mode in which add the type
+		s_type -> name of the new type
+		names[] -> list of enum defined like "string names[] = {"E1", "E2"}"
+		values[] -> list of int values defined like "int values[] = {0, 1}"
+		colors[] -> list of enum defined like "string names[] = {14, 24, 20}"
+	Return:
+		"True"/"False"
+	*/
+	AttrType at = find(m, s_type)
+	// If the type doesn't exist
+	if (null at){
+	    string mess = ""
+	    AttrType at = create(s_type, names, values, colors, mess)
+	    if (!null mess)
+	        return "False"
+	}
+	return "True"
+}
+
+string defType(Module m, string s_type, string s_basetype){
+	/*Define a type, s_basetype can't be enumeration
+
+	Args:
+		m: module open in edit mode in which add the type
+		s_type : name of the new type
+		s_basetype: "String", "Text", "Integer", "Date",
+            "Username" or "Real"
+	*/
+	AttrType at = find(m, s_type)
+	// If the type doesn't exist
+	if (null at){
+	    string mess = ""
+		if (s_basetype == "String")
+	    	at = create(s_type, attrString, mess)
+		if (s_basetype == "Text")
+	    	at = create(s_type, attrText, mess)
+		if (s_basetype == "Integer")
+	    	at = create(s_type, attrInteger, mess)
+		if (s_basetype == "Date")
+	    	at = create(s_type, attrDate, mess)
+		if (s_basetype == "Username")
+	    	at = create(s_type, attrUsername, mess)
+		if (s_basetype == "Real")
+	    	at = create(s_type, attrReal, mess)
+	    if (!null mess)
+	        return "False"
+	}
+	return "True"
+}
+
+string delType(Module m, string s_type){
+	/* Delete a type
+	Args:
+		s_type -> Name of the type
+	Return:
+		"True"/"False"
+	*/
+	AttrType at = find(m, s_type)
+	string s
+	if (!null at){
+  	  	delete(at, s)
+  	  	return "True"
+  	}
+  	return "False"
+}
+
+string setAttributes(Module m, int absno, string l_attr[], string l_val[], string l_mode[]){
+	/* Modify the value of a set of attr
+	Args:
+		m -> module open in edit mode
+		absno -> absno to modify
+		l_attr -> list of attribute names
+		l_val -> list of value
+		l_mode -> list of modes, "apnd" to append the value for text, "add"
+			to ad a selection in enum multi value, "repl" or "" to replace the value
+			"pre" to add the text above the current text
+	Return:
+		"True"/"False"
+	*/
+	int i
+	int max = sizeof l_attr - 1
+
+	string supp
+	Object o = object(absno, m)
+
+	for i in 0:max do{
+		if (l_mode[i] == "apnd"){
+			o.l_attr[i] = o.l_attr[i] l_val[i]
+		}
+		else if (l_mode[i] == "add"){
+			o.l_attr[i] += l_val[i]
+		}
+		else if (l_mode[i] == "repl" || l_mode[i] == ""){
+			supp = o.l_attr[i]
+			if (supp != l_val[i])
+				o.l_attr[i] = l_val[i]
+		}
+		else if (l_mode[i] == "pre"){
+			o.l_attr[i] = l_val[i] o.l_attr[i] ""
+		}
+		else{
+			return "False"
+		}
+	} 
+	return "True"
+}
+
+
+
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------
+// View functions
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+string defView(Module m, string s_viewname, string l_attr[], bool set_default){
+	/* Automatically set the attribute inside a view in the given order.
+	Args:
+	 	m -> Module in read/edit mode
+	 	s_viewname -> The name of the new view
+	 	l_attr[] -> The list of attribute to add
+	*/
+	int i
+	int max = sizeof l_attr - 1
+	int n_col = 0
+	AttrDef ad
+	Column c
+	int n = 0
+
+	//// Delete current attribute from view
+	// number of existing columns
+	for c in current Module do n++
+	// delete all columns
+	for i in 1:n do
+	    delete(column 0)
+
+	insert(column 0);
+	attribute(column 0, "Object Identifier");
+	width(column 0, 80);
+   	justify(column 0, left);
+
+	// Add the main Column (Object Heading+
+    // Object Text) to the View
+    Column mainColumn = null;
+    mainColumn = insert mainColumn;
+    main mainColumn;
+    width(mainColumn, 300);
+
+	// add each column in correct order
+	for i in 0:max do {		
+		ad = find(m, l_attr[i])
+		if (null ad){
+			return "False"
+		}
+		n_col = i + 2;
+		insert(column n_col)
+		attribute(column n_col, ad.name )
+		len = length(ad.name)*5+5
+		width(column n_col, len)
+		justify(column n_col, center)
+	}
+
+	refresh current
+	save view s_viewname
+	if (set_default){
+		setDefaultViewForModule(m, s_viewname)
+	}
+	return "True"
+}
+
+//-----------------------------------------------------------------------------
+// Global function
+//-----------------------------------------------------------------------------
+
+string scanModulesInFolder(string s_folder, int n_level, string s_divisor){
+	/* Retun all module in a folder, the number of folder
+	level to analye is n_level
+			n_level >= 1 iterate 1 or more level
+			n_leve = 0 get module of current dir, no recursion 
+			n_level = -1 -> explore all levels
+	*/
+	Item itm
+	current = folder s_folder
+	Folder f = current Folder 	 	 
+		
+	if (null f)
+	{
+		return ""
+	}
+
+	int n_new_level = n_level - 1
+	string msg = ""
+	// loop through items at top level of folder
+	for itm in f do
+	{
+		//print type(itm) " " fullName(itm) "\n"
+		// sensible checks to avoid run-time errors
+		if (null itm) continue
+		if (isDeleted(itm)) continue
+		
+		else if (type (itm) == "Formal"){
+			// do something with formal module
+			msg = msg fullName(itm) s_divisor
+		}
+		else  if (type(itm) == "Folder" or type(itm) == "Project"){
+			if (n_level > 0){
+				msg = msg scanModulesInFolder(fullName(itm), n_new_level, s_divisor)
+			}
+			else{
+				if (n_level == -1){
+					msg = msg scanModulesInFolder(fullName(itm), n_new_level, s_divisor)
+				}
+			}
+		}
+		
+	}
+	return msg
+}
+
+string getLinkSet(string s_folder, string s_div)
+{
+	current = folder s_folder
+	Project p = current
+	Item itemref
+	LinkModuleDescriptor linkmoddesc
+	string s = ""
+	string sto = ""
+	string slink = ""
+	string sret = ""
+	
+	for itemref in p do {                      
+		if(type(itemref)!= "Folder") then continue
+		
+		for linkmoddesc in folder itemref do {             
+			sto=  getTargetName(linkmoddesc )
+			s = getSourceName(linkmoddesc)
+			slink = getName(linkmoddesc)
+			//store s in skip list...
+			sret = sret s s_div sto s_div slink s_div
+		}// end of link module descriptor in folder loop
+	
+	} // end of folder in project loop
+	return sret
+}
+
+string scanFoldersInFolder(string s_folder)
+{
+	/*
+
+	*/
+	Item itm
+	current = folder s_folder
+	Folder f = current Folder 	 	 
+		
+	if (null f)
+	{
+		return ""
+	}
+
+	string msg = ""
+	int max = 0, i=0
+	// loop through items at top level of folder
+	for itm in f do {
+		if (type(itm) == "Folder" or type(itm) == "Project"){
+			max  = max  + 1 
+		}
+	}
+	for itm in f do
+	{
+		if (null itm) continue
+		if (isDeleted(itm)) continue
+		
+		if (type(itm) == "Folder" or type(itm) == "Project"){
+			msg = msg "\"" fullName(itm) "\""
+			string ret = scanFoldersInFolder(fullName(itm))
+			i = i + 1
+			if ( ret == "{}" ){
+				if ( i == max )
+					msg = msg ":{}"
+				else
+					msg = msg ":{} ,"
+
+			}
+			else{
+				if ( i == max )
+					msg = msg ":" ret
+				else
+					msg = msg ":" ret ","
+			}
+		}
+		
+	}
+	return "{" msg "}"
+}
+
+string getAbsnoList(Module m){
+	Object o
+	string msg = ""
+	for o in m do {
+		if (msg != "")
+			msg = msg ", " o."Absolute Number" ""
+		else
+			msg = o."Absolute Number" ""
+	}
+	return "[" msg "]"
+}

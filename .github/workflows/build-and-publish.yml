@@ -1,0 +1,117 @@
+name: Build and Publish
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+env:
+  PYTHON_VERSION: '3.13'
+
+jobs:
+  build-and-publish:
+    name: Build and Publish Python Package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bump version and create tag
+        id: version
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          echo "Getting latest semantic version tag"
+          latest_tag=$(git tag -l --sort=-v:refname "[0-9]*.[0-9]*.[0-9]*" | head -n 1)
+
+          if [ -z "$latest_tag" ]; then
+            echo "No semantic version tags found. Creating initial tag 1.0.0"
+            new_version="1.0.0"
+          else
+            echo "Latest tag: $latest_tag"
+            if [[ "$latest_tag" =~ ^v?([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+              major="${BASH_REMATCH[1]}"
+              minor="${BASH_REMATCH[2]}"
+              patch="${BASH_REMATCH[3]}"
+              new_version="$major.$minor.$((patch + 1))"
+              echo "New version: $new_version"
+            else
+              echo "Invalid version tag format: $latest_tag"
+              exit 1
+            fi
+          fi
+
+          echo "Creating annotated tag: $new_version"
+          git tag -a "$new_version" -m "Release version $new_version"
+
+          echo "Pushing tag: $new_version"
+          git push origin "refs/tags/$new_version"
+
+          echo "version=$new_version" >> "$GITHUB_OUTPUT"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Sync dependencies
+        run: uv sync --python "$PYTHON_VERSION"
+
+      - name: Build (uv build)
+        run: |
+          set -euo pipefail
+          uv build --python "$PYTHON_VERSION"
+
+          echo "Build contents:"
+          if [ -d dist ]; then
+            ls -l dist
+          else
+            echo "dist/ not found - build step may have failed."
+            exit 1
+          fi
+
+      - name: Twine check
+        run: |
+          uvx --python "$PYTHON_VERSION" twine --version
+          uvx --python "$PYTHON_VERSION" twine check dist/*
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.version }}"
+          echo "Creating GitHub Release $version"
+          gh release create "$version" dist/* \
+            --title "dopyi $version" \
+            --generate-notes
+
+      - name: Upload package to index (optional)
+        env:
+          TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
+          TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
+          TWINE_REPOSITORY_URL: ${{ secrets.TWINE_REPOSITORY_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TWINE_USERNAME:-}" ] || [ -z "${TWINE_PASSWORD:-}" ]; then
+            echo "TWINE_USERNAME / TWINE_PASSWORD secrets are not set - skipping package index upload."
+            echo "The package is still available as a GitHub Release asset."
+            exit 0
+          fi
+
+          if [ -n "${TWINE_REPOSITORY_URL:-}" ]; then
+            echo "Uploading to $TWINE_REPOSITORY_URL ..."
+            uvx --python "$PYTHON_VERSION" twine upload --repository-url "$TWINE_REPOSITORY_URL" --verbose dist/*
+          else
+            echo "Uploading to PyPI (default) ..."
+            unset TWINE_REPOSITORY_URL
+            uvx --python "$PYTHON_VERSION" twine upload --verbose dist/*
+          fi
