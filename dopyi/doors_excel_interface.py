@@ -17,6 +17,15 @@ PORT = 5098
 S_LOGO = Path(S_PATH, "logo", "dopyi.ico").resolve().absolute()
 VERBOSE = False
 
+# UI-only mode: set DOPYI_NO_DOORS=1 to open the window without starting
+# the local DOORS server (all DOORS-dependent actions are disabled)
+B_NO_DOORS = os.environ.get("DOPYI_NO_DOORS", "").lower() in ("1", "true")
+
+# Events that require a running DOORS server
+L_DOORS_EVENTS = ("-SHOW_DXL-", "-REFRESH_ATTR-", "-BT_CHECK-",
+                  "-BT_DOWNLOAD_FROM_DOORS-", "-BT_UPLOAD_IN_DOORS-",
+                  "-BT_DELTA-")
+
 
 def myprin(*args):
     if VERBOSE:
@@ -257,34 +266,40 @@ def gui():
         ],
     ]
 
-    pconn, cconn = Pipe()
-    proc_dsm = Process(target=server_dsm, args=(cconn,),
-                       name="DoorsBatchInterface")
-    proc_dsm.start()
+    pconn = None
+    s_title = "Excel - DOORS Exchange"
+    if B_NO_DOORS:
+        s_title += " (UI-only mode, DOORS disabled)"
+    else:
+        pconn, cconn = Pipe()
+        proc_dsm = Process(target=server_dsm, args=(cconn,),
+                           name="DoorsBatchInterface")
+        proc_dsm.start()
 
-    window1 = sg.Window('Waiting DOORS connection',
-                        layout=[[sg.ProgressBar(max_value=100,
-                                                size=(30, 10),
-                                                key='bar')]])
+        window1 = sg.Window('Waiting DOORS connection',
+                            layout=[[sg.ProgressBar(max_value=100,
+                                                    size=(30, 10),
+                                                    key='bar')]])
 
-    progress = 0
-    step = 1
+        progress = 0
+        step = 1
 
-    while pconn.poll(0.05) is False:
-        window1.read(timeout=50)
-        window1['bar'].update_bar(progress)
-        progress += step
+        while pconn.poll(0.05) is False:
+            window1.read(timeout=50)
+            window1['bar'].update_bar(progress)
+            progress += step
 
-        if progress > 100 or progress < 0:
-            step *= -1
+            if progress > 100 or progress < 0:
+                step *= -1
 
-    rec = pconn.recv()
-    if rec != "Alive":
-        raise Exception("Error in the server process, received: " + str(rec))
-    window1.close()
+        rec = pconn.recv()
+        if rec != "Alive":
+            raise Exception("Error in the server process, received: "
+                            + str(rec))
+        window1.close()
 
     # Create the window
-    window = sg.Window("Excel - DOORS Exchange", layout, icon=S_LOGO)
+    window = sg.Window(s_title, layout, icon=S_LOGO)
 
     def mod_exists(module):
         pconn.send("exist")
@@ -299,6 +314,10 @@ def gui():
         myprin(event, values)
         if event == "OK" or event == sg.WIN_CLOSED:
             break
+        if pconn is None and event in L_DOORS_EVENTS:
+            sg.popup_error("DOORS is not available (UI-only mode), "
+                           "this action is disabled.")
+            continue
         # Save the input data
         if event == "-FORCE_DOWNLOAD-":
             force_download = values["-FORCE_DOWNLOAD-"]
@@ -589,7 +608,8 @@ def gui():
         if event == "-BT_DELTA-":
             myprin("Delta")
 
-    pconn.send("stop")
+    if pconn is not None:
+        pconn.send("stop")
     window.close()
 
 
