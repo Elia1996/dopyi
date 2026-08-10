@@ -62,9 +62,6 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Sync dependencies
-        run: uv sync --python "$PYTHON_VERSION"
-
       - name: Build (uv build)
         run: |
           set -euo pipefail
