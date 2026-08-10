@@ -58,6 +58,7 @@ from time import sleep
 from dopyi.doorserver import S_DOORSERVER
 from dopyi.doorserver import S_DOORSERVER_NEW
 from dopyi.doorserver import S_DOORSKEY
+from dopyi.doors_discovery import resolve_doors_exe
 
 D_PORTS = {}
 D_PROC = {}
@@ -166,7 +167,7 @@ def close_all():
         proc.kill()
 
 
-def run(n_port=5094):
+def run(n_port=5094, doors_exe=None):
     """ Run a Local DOORS server with the specified Socket port.
 
     Parameters:
@@ -174,6 +175,11 @@ def run(n_port=5094):
     n_port: int
         the number of the socket port used for the
         local server. from 1024 to 65535
+    doors_exe: str
+        full path of the doors.exe to use; if None it is
+        discovered automatically (DOPYI_DOORS_EXE env var,
+        saved choice, DOORSHOME, registry, standard install
+        paths - see dopyi.doors_discovery)
 
     The function steps are:
     -   create the dxl script in localdatabase dir coping the doorserver.dxl
@@ -210,17 +216,16 @@ def run(n_port=5094):
         # print("The server is already active" + str(ret))
     except:
         # open the server
+        if doors_exe is None:
+            doors_exe = resolve_doors_exe()
+
         bl_reask = False
         bl_ask_passw = True
         while bl_ask_passw:
             [user, passw] = getDOORS_UserPassw(S_DOORSKEY, bl_reask)
             bl_ask_passw = True
 
-            s_cmd = 'C:\\Program Files\\IBM\\Rational\\DOORS\\9.6\\bin'
-            if not os.path.exists(s_cmd):
-                s_cmd = 'C:\\Program Files\\IBM\\Rational\\DOORS\\9.7\\bin'
-
-            cmd = '"' + s_cmd + "\\doors.exe"\
+            cmd = '"' + doors_exe\
                 + '"'+" -u " + user + " -pass \"" + passw\
                 + "\" -b \"" + new_doorserver + "\""
 

@@ -70,3 +70,24 @@ git_describe_command = [
 
 [tool.uv]
 package = true
+
+[tool.pytest.ini_options]
+# Tests needing a real DOORS installation are deselected by default;
+# run them with: pytest -m doors
+addopts = "-m 'not doors'"
+markers = [
+    "doors: requires a real local DOORS installation (deselected by default)",
+    "del_module",
+    "check_reload",
+    "new_objects",
+    "new_view",
+    "change_values",
+    "add_rows",
+    "to_excel",
+    "from_excel",
+    "get_last_baseline",
+    "dxl_create_links",
+    "dxl_delete_links",
+    "dxl_delete_all_obj_links",
+    "dxl_create_link_by_attr",
+]

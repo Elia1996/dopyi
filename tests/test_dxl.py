@@ -2,6 +2,8 @@ from dopyi.dxl import dxl
 from icecream import ic
 import pytest
 
+pytestmark = pytest.mark.doors
+
 MOD_PREFIX = "/Copy 2 of Example_Project/"
 
 SYS1_MOD = MOD_PREFIX + "10_System/05_Stakeholder/SoW_Example"

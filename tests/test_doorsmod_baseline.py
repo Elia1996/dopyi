@@ -1,6 +1,8 @@
 import pytest
 from dopyi.doorsmod import doorsmod
 
+pytestmark = pytest.mark.doors
+
 TSTMOD_B1 = "/xxx_SYS_TestsProject/TestDoorsmod@0.1"
 
 

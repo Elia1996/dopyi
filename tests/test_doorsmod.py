@@ -4,6 +4,8 @@ from icecream import ic
 import pandas as pd
 from dopyi.doorsmod import doorsmod
 
+pytestmark = pytest.mark.doors
+
 l_attr = ["Py Function", "Satisfied SRS", "Setup ID", "Tested By",
           "Automated", "Setup1 Result", "Setup1 Result", "Setup2 Result",
           "Exec. Time Estimation [h]", "# Dut to be Tested"]
