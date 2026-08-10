@@ -1,7 +1,7 @@
 from multiprocessing import Pipe, Process
 from pathlib import Path
 import pandas as pd
-import PySimpleGUI as sg
+import FreeSimpleGUI as sg
 import time
 from dopyi.doorsmod import doorsmod
 from dopyi.doorserver.server import show_prompt
