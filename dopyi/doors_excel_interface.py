@@ -43,6 +43,15 @@ COMPARE_FILE_DEFAULT = "Compare.xlsx"
 show_prompt(SHOW_PROMPT_DEFAULT)
 
 
+S_FOOTER = "Made by Elia R. with ❤"
+
+
+def footer_row():
+    """Small credit footer shown bottom-right in every window."""
+    return [sg.Push(), sg.Text(S_FOOTER, font=("Helvetica", 8, "italic"),
+                               text_color="gray")]
+
+
 dsm_glob = None
 force_download = True
 f_down_excel = None
@@ -112,13 +121,13 @@ def server_dsm(conn):
 S_PARAMETER_HELP = """The parameter module shall contain the following columns:
 - Unit: the unit of the parameter, the name can be different but the content shall
     be the unit of the parameter. These are the allowed units:
-    - String: the parameter value shall be  a string
+    - String: the parameter value shall be a string
     - Dictionary: the parameter value shall be a dictionary like {"key": "value", "key2": "value2"}
     - Adimensional: the parameter value has no dimension, like the number of
-        cuncurrent process in a processor or the number of cores in a uc.
-    - Enum: the parameter value shall be like a dictionary, the difference respect to the
-        dictionary is that you cannot have nested dictionary and the value will be
-        converted in a Enum in python.
+        concurrent processes in a processor or the number of cores in a microcontroller.
+    - Enum: the parameter value shall be like a dictionary, the difference with
+        respect to the dictionary is that you cannot have nested dictionaries
+        and the value will be converted into an Enum in Python.
     - Standard Unit: the other possible units are the usual physical units like m, kg, s, A,
         K, mol, cd, rad, sr, Hz, N, Pa, J, W, C, V, F, Ohm, you can also use the prefix like
         m, u, n, p, f etc. It is also possible to have division like m/s, V/us, etc. The unit
@@ -152,12 +161,13 @@ def gui():
         [sg.Text("Excel side", font='bold 18')],
         [],
         [sg.Frame("Downloading from DOORS", layout=[
-            [sg.Text("Select an Excel file in which download "
-                     "the DOORS module")],
+            [sg.Text("Select the Excel file where the DOORS module "
+                     "will be downloaded")],
             [sg.In(size=(50, 1), enable_events=True,
                    key="-DOWNLOAD_EXCEL_NAME-"),
              sg.FileBrowse(file_types=(("Excel Files", "*.xlsx"),))],
-            [sg.In(size=(50, 1), enable_events=True, key="-DOWN_SHEET_NAME-",
+            [sg.Text("Sheet name:", size=(12, 1)),
+             sg.In(size=(37, 1), enable_events=True, key="-DOWN_SHEET_NAME-",
                    default_text=DOWN_SHEET_NAME_DEFAULT)],
             [sg.Text("Download", font='bold'),
              sg.Checkbox("Force Download", key="-FORCE_DOWNLOAD-",
@@ -169,20 +179,22 @@ def gui():
             [sg.Text("", key="-DOWN_LOG-", size=(50, 3))],
             ], font='bold 12', expand_x=True)],
 
-        [sg.Frame("Uploading in DOORS", font='bold 12', expand_x=True, layout=[
-            [sg.Text("Select the Excel file to upload in DOORS")],
+        [sg.Frame("Uploading to DOORS", font='bold 12', expand_x=True, layout=[
+            [sg.Text("Select the Excel file to upload to DOORS")],
             [sg.In(size=(50, 1), enable_events=True,
                    key="-UPLOAD_EXCEL_NAME-"),
              sg.FileBrowse(file_types=(("Excel Files", "*.xlsx"),))],
-            [sg.In(size=(50, 1), enable_events=True, key="-UP_SHEET_NAME-",
+            [sg.Text("Sheet name:", size=(12, 1)),
+             sg.In(size=(37, 1), enable_events=True, key="-UP_SHEET_NAME-",
                    default_text=UP_SHEET_NAME_DEFAULT)],
-            [sg.In(size=(50, 1), enable_events=True,
+            [sg.Text("Compare file:", size=(12, 1)),
+             sg.In(size=(37, 1), enable_events=True,
                    key="-COMPARE_EXCEL_NAME-",
                    default_text=COMPARE_FILE_DEFAULT),
              sg.FileBrowse(file_types=(("Excel File for Compare",
                                         "*.xlsx"),))],
             [sg.Button("Check Delta", key="-BT_DELTA-"),
-             sg.Text("An excel will be displayed with the delta")],
+             sg.Text("An Excel file with the differences will be opened")],
             [sg.Text("Upload", font='bold'),
              sg.Checkbox("Force download before upload",
                          key="-FORCE_DOWN_IN_UPLOAD-",
@@ -194,11 +206,11 @@ def gui():
             [sg.Text("", key="-UP_LOG-", size=(40, 1))],
             ])],
         [sg.Frame("Parameter Module Check", font='bold 12', layout=[
-            [sg.Text("Please download the Parameter module from DOORS using "
-                     "the normal Download Section, then select the column "
-                     "map to check below.", size=(50, 2))],
-            [sg.Text("Please Select below the corresponding attribute name"
-                     " in the doors module for parameters.", size=(30, 1)),
+            [sg.Text("Download the Parameter module from DOORS using the "
+                     "Download section above, then map the module "
+                     "attributes below and press Check.", size=(50, 2))],
+            [sg.Text("Select the DOORS attribute that contains each "
+                     "parameter field:", size=(30, 2)),
              sg.Button("Refresh Attributes", key="-REFRESH_ATTR-")],
             [sg.Text("Parameter Name Attribute: ", size=(30, 1)),
              sg.Combo(values=par_attributes, size=(30, 1), key="-PAR_NAME-",
@@ -222,13 +234,16 @@ def gui():
             [sg.Checkbox("Show Dxl Terminal", key="-SHOW_DXL-",
                          default=SHOW_PROMPT_DEFAULT, enable_events=True,
                          disabled=True)],
-            [sg.Text("Plese write down here the full path of the DOORS"
-                     " module, this will be used both for download and "
-                     " in the section on the left.", size=(50, 3))],
+            [sg.Text("Write here the full path of the DOORS module "
+                     "(e.g. /Project/Folder/Module). It is used by all "
+                     "the actions in this window.", size=(50, 3))],
             [sg.In(size=(50, 1), enable_events=True, key="-MODULE-",
                    default_text=DEF_MODULE)]])],
         # Baseline definition
         [sg.Frame("Baseline definition", font='bold 12', layout=[
+            [sg.Text("Before every upload a new baseline of the module "
+                     "is created with this suffix and description:",
+                     size=(50, 2))],
             [sg.Text("Baseline Suffix", size=(20, 1)),
              sg.InputText("", size=(20, 1), key="-SUFFIX-")],
             [sg.Text("Baseline Description", size=(20, 1))],
@@ -238,17 +253,18 @@ def gui():
             [sg.Text(" ", size=(50, 1), key="-BASELINE_LOG-")]])],
         [],
         [sg.Text("Help", font='bold 15')],
-        [sg.Text("Download: download the module from DOORS in the excel file",
-                 size=(50, 1))],
-        [sg.Text("Upload: upload the excel file in DOORS", size=(50, 1))],
-        [sg.Text("Check Delta: compare the excel file with the DOORS module",
-                 size=(50, 1))],
-        [sg.Text("Force download before upload: force the download of the "
-                 "module before upload in doors, it is suggested.",
+        [sg.Text("Download: save the DOORS module into the selected "
+                 "Excel file", size=(50, 1))],
+        [sg.Text("Upload: write the Excel file content back into the "
+                 "DOORS module", size=(50, 1))],
+        [sg.Text("Check Delta: compare the Excel file with the DOORS module "
+                 "without writing anything", size=(50, 2))],
+        [sg.Text("Force download before upload: refresh the local copy of "
+                 "the module before uploading (recommended).",
                  size=(50, 2))],
-        [sg.Text("Check carefully the delta before upload, "
-                 "look also in the second sheet to see the delta.",
-                 size=(50, 2), text_color="blue")],
+        [sg.Text("Always check the delta carefully before uploading; "
+                 "the second sheet of the compare file also contains "
+                 "changes.", size=(50, 2), text_color="blue")],
         [sg.Frame("Parameter Help", layout=[[
             sg.Text(S_PARAMETER_HELP, size=(70, 22), font='bold 8')]],
             expand_x=True)],
@@ -264,6 +280,7 @@ def gui():
             sg.Text("Disclaimer: this software is provided as is, without any "
                     "warranty, use it at your own risk", font='bold 7')
         ],
+        footer_row(),
     ]
 
     pconn = None
@@ -276,10 +293,11 @@ def gui():
                            name="DoorsBatchInterface")
         proc_dsm.start()
 
-        window1 = sg.Window('Waiting DOORS connection',
+        window1 = sg.Window('Waiting for DOORS connection...',
                             layout=[[sg.ProgressBar(max_value=100,
                                                     size=(30, 10),
-                                                    key='bar')]])
+                                                    key='bar')],
+                                    footer_row()])
 
         progress = 0
         step = 1
@@ -395,11 +413,11 @@ def gui():
         # Download from DOORS in Excel
         if event == "-BT_DOWNLOAD_FROM_DOORS-":
             if type(f_down_excel) != str or not Path(f_down_excel).exists():
-                window["-DOWN_LOG-"].update("Wrong excel file name!!",
+                window["-DOWN_LOG-"].update("Excel file not found, select an existing file",
                                             text_color="red")
             # chek the existence of the doors module
             elif mod_exists(module) is False:
-                window["-DOWN_LOG-"].update("Wrong DOORS module name!!",
+                window["-DOWN_LOG-"].update("DOORS module not found, check the module path",
                                             text_color="red")
 
             else:
@@ -409,7 +427,7 @@ def gui():
                 pconn.send("download")
                 pconn.send(module)
                 pconn.send(force_download)
-                window["-DOWN_LOG-"].update("Downloading start soon, "
+                window["-DOWN_LOG-"].update("Download starting, "
                                             "please wait...")
                 bl_error = False
                 while True:
@@ -431,8 +449,8 @@ def gui():
                         window["-DOWN_LOG-"].update(dic["msg"],
                                                     text_color="blue")
                 if not bl_error:
-                    window["-DOWN_LOG-"].update("Download completed!!, "
-                                                "exporting to excel...")
+                    window["-DOWN_LOG-"].update("Download completed, "
+                                                "exporting to Excel...")
                     window["-DOWN_PROG-"].update(0)
 
                 ############################################################
@@ -459,17 +477,17 @@ def gui():
             if dsm_glob is None:
                 dsm_glob = doorsmod(module, port=PORT)
             if type(f_up_excel) != str or not Path(f_up_excel).exists():
-                window["-UP_LOG-"].update("Wrong excel file name!!",
+                window["-UP_LOG-"].update("Excel file not found, select an existing file",
                                           text_color="red")
             # chek the existence of the doors module
             elif mod_exists(module) is False:
-                window["-UP_LOG-"].update("Wrong DOORS module name!!",
+                window["-UP_LOG-"].update("DOORS module not found, check the module path",
                                           text_color="red")
             # chek if the sheet name up_sheet_name exists in the excel
             elif up_sheet_name not in pd.ExcelFile(f_up_excel).sheet_names:
                 sheets = pd.ExcelFile(f_up_excel).sheet_names
-                window["-UP_LOG-"].update(f"Wrong sheet name!! avilable "
-                                          f"sheets: {sheets}",
+                window["-UP_LOG-"].update(f"Sheet not found in the Excel file. "
+                                          f"Available sheets: {sheets}",
                                           text_color="red")
             else:
                 n_div = 1
@@ -511,7 +529,7 @@ def gui():
                 pconn.send("download")
                 pconn.send(module)
                 pconn.send(force_download_in_upload)
-                window["-UP_LOG-"].update("Downloading start soon, "
+                window["-UP_LOG-"].update("Download starting, "
                                           "please wait...")
                 
                 bl_error = False
@@ -575,8 +593,9 @@ def gui():
                                 window["-UP_LOG-"].update(dic["msg"],
                                                           text_color="blue")
                         if bl_error:
-                            window["-UP_LOG-"].update("Upload completed!!, "
-                                                      "data now in bad DOORS")
+                            window["-UP_LOG-"].update("Upload error: the DOORS module "
+                                                      "may be inconsistent, "
+                                                      "check it in DOORS!")
                             window["-UP_PROG-"].update(0)
                             pconn.send("open_excel")
                             pconn.send(f_compare)

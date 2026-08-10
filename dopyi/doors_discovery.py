@@ -292,6 +292,9 @@ def ask_user_gui(l_candidates):
         [sg.Listbox(l_labels, default_values=[l_labels[0]],
                     size=(80, min(len(l_labels), 8)), key="-SEL-")],
         [sg.Button("OK"), sg.Button("Cancel")],
+        [sg.Push(), sg.Text("Made by Elia R. with ❤",
+                            font=("Helvetica", 8, "italic"),
+                            text_color="gray")],
     ]
     window = sg.Window("Select DOORS installation", layout)
     try:
