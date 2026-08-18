@@ -34,6 +34,8 @@ from dopyi.dxl import (
     S_BS_ANNOTATION, S_BS_DATE, S_BS_CREATOR,
     S_BS_ID
 )
+from dopyi.dxl import CommunicationOrDxlError
+from dopyi.doorserver.server import DoorsDxlExecutionError
 
 S_L_LINKMOD_KEY = dxl.S_L_LINKMOD_KEY
 S_L_MOD_KEY = dxl.S_L_MOD_KEY
@@ -902,12 +904,21 @@ class doorsmod(dxl):
 
         # Cycle over the absolute number and get the values
         imax = len(l_absno) + 1 + len(l_attr[len(L_DEFAULT_ATTR_RO):])
+        l_failed = []
         for absno in l_absno:
             ################################################
             # Loading all attribute available in pandas object
             i = pgr(conn, f"Reading Attributes and Links of  Absno: {absno}.",
                     i, imax)
-            l_values = sf.get_obj_attr_values(absno, l_attr)
+            try:
+                l_values = sf.get_obj_attr_values(absno, l_attr)
+                d_links = sf.get_links(absno)
+            except (DoorsDxlExecutionError, CommunicationOrDxlError) as e:
+                # A single broken object (e.g. a link whose module
+                # cannot be resolved) must not abort the whole read
+                logging.warning("Skipped absno %s: %s", absno, e)
+                l_failed.append(absno)
+                continue
             sf.__data.loc[absno, l_attr] = l_values
             sf.__data.loc[absno, S_ID] = encode_absno(absno)
             # the wc is the same without read only attrs.
@@ -915,13 +926,18 @@ class doorsmod(dxl):
             sf.wcd.loc[absno, S_ID] = encode_absno(absno)
             ################################################
             # Loading links in pandas object
-            d_links = sf.get_links(absno)
             sf.__data.at[absno, S_INLINK] = cget(d_links, "in")
             sf.wcd.at[absno, S_INLINK] = cget(d_links, "in")
             sf.__data.at[absno, S_OUTLINK] = cget(d_links, "out")
             sf.wcd.at[absno, S_OUTLINK] = cget(d_links, "out")
             sf.__data.at[absno, S_EXTLINK] = cget(d_links, "ext")
             sf.wcd.at[absno, S_EXTLINK] = cget(d_links, "ext")
+
+        if l_failed:
+            s_failed = ", ".join(str(a) for a in l_failed)
+            pgr(conn, f"WARNING: skipped {len(l_failed)} objects with "
+                      f"DXL errors (absno: {s_failed}), see doorsmod.log",
+                i, imax)
 
         # Save the data in pickle object
         sf.__data.to_pickle(sf._p_data)

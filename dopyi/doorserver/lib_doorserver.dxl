@@ -79,9 +79,20 @@ string split_get(string s, char divider, int index){
 }
 
 
+// Marker used when a link points to a module that cannot be
+// resolved (deleted, no read access or dangling link).
+string S_UNRESOLVED_MODULE = "<unresolved module>"
+
 string std_mod_name(ModuleVersion mv){
+	if (null mv){
+		return S_UNRESOLVED_MODULE
+	}
+	ModName_ mod_ref = module(mv)
+	if (null mod_ref){
+		return S_UNRESOLVED_MODULE
+	}
 	string vstring = versionString(mv)
-	string mod_name = fullName(module(mv))
+	string mod_name = fullName(mod_ref)
 	if (vstring == ""){
 		return mod_name
 	}
@@ -245,9 +256,14 @@ string objGetInOutLink(Module m, int absno, string s_divisor){
 	// Incoming link
 	for lnkRef in all (o<-"*") do {
 		s = s "KEY:in" s_divisor
-		// Link module
+		// Link module (may be unresolvable, never pass null to fullName)
 		m_sup = module lnkRef
-		s = s fullName(m_sup) s_divisor
+		if (null m_sup){
+			s = s S_UNRESOLVED_MODULE s_divisor
+		}
+		else{
+			s = s fullName(m_sup) s_divisor
+		}
 		// Souce module
 		s = s get_source(lnkRef) s_divisor
 		// Source Absno
@@ -257,9 +273,14 @@ string objGetInOutLink(Module m, int absno, string s_divisor){
 	// Outgoing link
 	for lnk in all (o->"*") do {
 		s = s "KEY:out" s_divisor
-		// Link module
+		// Link module (may be unresolvable, never pass null to fullName)
 		m_sup = module lnk
-		s = s fullName(m_sup) s_divisor
+		if (null m_sup){
+			s = s S_UNRESOLVED_MODULE s_divisor
+		}
+		else{
+			s = s fullName(m_sup) s_divisor
+		}
 		// Dest module
 		s = s get_target(lnk) s_divisor
 		// Dest Absno

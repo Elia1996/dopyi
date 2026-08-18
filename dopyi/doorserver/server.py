@@ -50,12 +50,12 @@ from os.path import exists
 import os
 import socket
 import signal
-import subprocess, shlex
-from easygui import enterbox
-from easygui import passwordbox
+import subprocess
+from easygui import multpasswordbox
 from time import sleep
 
 from dopyi.doorserver import S_DOORSERVER
+from dopyi.doorserver import S_DOORSERVER_LIB
 from dopyi.doorserver import S_DOORSERVER_NEW
 from dopyi.doorserver import S_DOORSKEY
 from dopyi.doors_discovery import resolve_doors_exe
@@ -65,6 +65,27 @@ D_PROC = {}
 
 B_SHOW_PROMPT = True
 B_DXL_REWRITE = False
+
+
+class DoorsDxlExecutionError(Exception):
+    """Raised when DOORS replies with a corrupted/missing answer,
+    typically because the DXL execution halted with an error."""
+
+    def __init__(self, reply, cmd=None):
+        self.reply = reply
+        self.cmd = cmd
+        s_cmd = (cmd or "").strip()
+        if len(s_cmd) > 300:
+            s_cmd = s_cmd[:300] + " [...]"
+        super().__init__(
+            "DOORS did not return a valid answer (the DXL execution "
+            "probably halted, check the DOORS console).\n"
+            f"  Reply received: {reply!r}\n"
+            f"  DXL command sent:\n{s_cmd}")
+
+
+class DoorsLoginAbortedError(Exception):
+    """Raised when the user cancels the DOORS login dialog."""
 
 # f_user = os.path.join(os.path.expanduser('~'),"Documents","user.txt")
 
@@ -76,7 +97,7 @@ B_DXL_REWRITE = False
 
 
 def getDOORS_UserPassw(f_user_passw, ask=False):
-    """ Manage DOORS username ana password with two enterbox.
+    """ Manage DOORS username and password with a single dialog.
 
     Parameters
     -----------------------------------
@@ -87,19 +108,38 @@ def getDOORS_UserPassw(f_user_passw, ask=False):
         used to force the user/passw ask to user even
         if it is already present in the f_user_passw.
 
+    Raises
+    -----------------------------------
+    DoorsLoginAbortedError
+        if the user cancels the dialog.
+
+    The username is stripped (leading/trailing spaces are never
+    valid in DOORS usernames), the password is kept verbatim.
     """
     if not exists(f_user_passw) or ask:
-        user = enterbox("Write Doors username:")
-        passw = passwordbox("Write Doors password:")
+        if ask:
+            s_msg = ("DOORS login failed, please check your "
+                     "credentials.\n(usernames with spaces are "
+                     "supported)")
+        else:
+            s_msg = "Insert your DOORS credentials:"
+        # multpasswordbox masks only the last field
+        l_ret = multpasswordbox(s_msg, "DOORS login",
+                                ["Username", "Password"])
+        if l_ret is None:
+            raise DoorsLoginAbortedError(
+                "DOORS login cancelled by the user")
+        user = l_ret[0].strip()
+        passw = l_ret[1]
         with open(f_user_passw, "w") as fp:
             fp.write(user + "\n")
             fp.write(passw + "\n")
     else:
         with open(f_user_passw, "r") as fp:
-            user = fp.readline()
-            passw = fp.readline()
+            user = fp.readline().strip()
+            passw = fp.readline().rstrip("\n")
 
-    return [user.strip(), passw.strip()]
+    return [user, passw]
 
 
 S_ECHO = """
@@ -189,7 +229,7 @@ def run(n_port=5094, doors_exe=None):
     -   if the server is not opened run it
     -   The password is managed using a support file called userpassw.txt
             in the localdatabase dir, if the password is not stored or
-            it is wrong the function use two enterbox to ask the
+            it is wrong the function use a login dialog to ask the
             correct username and password.
     """
     global D_PROC, D_PORTS, B_SHOW_PROMPT
@@ -200,6 +240,9 @@ def run(n_port=5094, doors_exe=None):
         fp.close()
         # Modify port number
         data = data.replace("CONNECTION_PORT", str(n_port))
+        # Point the include to the packaged lib_doorserver.dxl
+        data = data.replace("#include <lib_doorserver.dxl>",
+                            "#include <" + S_DOORSERVER_LIB + ">")
         if B_SHOW_PROMPT:
             data = data.replace("""//PRINT_LINE""", "print")
         new_doorserver = S_DOORSERVER_NEW + str(n_port) + ".dxl"
@@ -220,23 +263,19 @@ def run(n_port=5094, doors_exe=None):
             doors_exe = resolve_doors_exe()
 
         bl_reask = False
-        bl_ask_passw = True
-        while bl_ask_passw:
+        while True:
             [user, passw] = getDOORS_UserPassw(S_DOORSKEY, bl_reask)
-            bl_ask_passw = True
 
-            cmd = '"' + doors_exe\
-                + '"'+" -u " + user + " -pass \"" + passw\
-                + "\" -b \"" + new_doorserver + "\""
-
-            # pro = subprocess.run(shlex.split(cmd))
-            pro = subprocess.Popen(shlex.split(cmd))
+            # Argument list (no shell string): usernames with spaces
+            # and passwords with quotes/backslashes are passed as-is.
+            cmd = [doors_exe, "-u", user, "-pass", passw,
+                   "-b", new_doorserver]
+            pro = subprocess.Popen(cmd)
             D_PROC[n_port] = pro
-            bl_ask_passw = False
 
-            if not is_server_on(pro, n_port):
-                bl_ask_passw = True
-                bl_reask = True
+            if is_server_on(pro, n_port):
+                break
+            bl_reask = True
     return True
 
 
@@ -284,7 +323,7 @@ def basic_run_dxl(s_cmd, n_port, s_starter):
     stringa = stringa.replace("b'", "").replace("'", "")
 
     if stringa[0:len(s_starter)] != s_starter:
-        return False
+        raise DoorsDxlExecutionError(stringa, s_cmd)
     return stringa[len(s_starter):].strip()
 
 
@@ -318,9 +357,11 @@ def run_dxl(s_cmd, n_port, s_starter):
     you find in that library.
     """
     try:
-        stringa = basic_run_dxl(s_cmd, n_port, s_starter)
-    except:
-        # Open soket and open server if it is not opened
+        return basic_run_dxl(s_cmd, n_port, s_starter)
+    except OSError:
+        # Socket error: the local DOORS server is not running yet.
+        # DoorsDxlExecutionError is NOT caught here on purpose: the
+        # command reached DOORS and failed, re-running it could
+        # execute a write command twice.
         run(n_port)
         return basic_run_dxl(s_cmd, n_port, s_starter)
-    return stringa

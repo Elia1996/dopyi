@@ -148,6 +148,12 @@ bc.P_DC_ULV_Nominal   # -> <Quantity(14, 'volt')>
 
 Dopyi stores downloaded module data and credentials under `~/DoorsLocalDatabase`. Delete this folder to reset the local cache and stored credentials.
 
+## Troubleshooting
+
+- **`Activate.ps1 is not digitally signed` when activating the venv (PowerShell).** On corporate machines the ExecutionPolicy is often locked to `AllSigned` by Group Policy and cannot be overridden. Activating the venv is not required: invoke the interpreter directly (`.venv\Scripts\python.exe your_script.py`), or use `activate.bat` from `cmd` instead of PowerShell.
+- **A link reports `<unresolved module>`.** The link points to a module that was deleted or that your DOORS user cannot read. The object and its other links are still read normally.
+- **`WARNING: skipped N objects with DXL errors` at the end of a read.** The listed absnos raised a DXL error while being read; details are in `doorsmod.log`. The rest of the module is loaded and usable.
+
 ## Development
 
 ```bash
@@ -156,7 +162,13 @@ cd dopyi
 uv sync
 ```
 
-Tests (`tests/`) require a live DOORS installation with test modules, so they cannot run in CI:
+The default test run is DOORS-free (tests marked `doors` are deselected automatically):
+
+```bash
+uv run pytest
+```
+
+Tests that need a live DOORS installation with test modules are run explicitly with their marker:
 
 ```bash
 uv run pytest -m <marker>

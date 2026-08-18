@@ -66,6 +66,12 @@ class ModuleNotExist(DoorsokDxlError):
         super().__init__(self.message)
 
 
+class AbsnoNotFoundError(DoorsokDxlError):
+    """Raised when the requested absolute number does not exist
+    in the current module.
+    """
+
+
 #########################################################################
 # Data handling function #######################################
 """ In this section are collected all function used to transform row
@@ -1085,10 +1091,11 @@ class dxl():
         s = s.replace("S_LIST_DIV", sf.div)
         s = s.replace("S_STARTER", sf.starter)
 
-        # Run dxl code in server
-        s_ret = sf.run_dxl(s).strip()
+        # Run dxl code in server (raises DoorsDxlExecutionError if
+        # the DXL execution halted)
+        s_ret = sf.run_dxl(s)
 
-        # Error management to implement
+        coarse_handle_errors(s_ret, {"#1": AbsnoNotFoundError})
         return coarse_to_dic(s_ret, sf.D_STRUCT, sf.div)
 
     S_DXL_GET_ABSNO = """

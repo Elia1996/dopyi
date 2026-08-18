@@ -4,8 +4,11 @@ These verify basic_run_dxl / run_dxl / is_server_on and the dxl class
 communication layer without any DOORS installation.
 """
 
+import pytest
+
 from dopyi.doorserver.server import (
     S_ECHO,
+    DoorsDxlExecutionError,
     basic_run_dxl,
     is_server_on,
     run_dxl,
@@ -21,9 +24,25 @@ def test_basic_run_dxl_returns_payload_and_sends_request():
         assert srv.requests and "return_" in srv.requests[0]
 
 
-def test_basic_run_dxl_wrong_starter_returns_false():
+def test_basic_run_dxl_wrong_starter_raises():
+    # A reply without the starter means the DXL execution halted:
+    # it must raise (with the reply and the command in the message),
+    # not return a False sentinel that crashes later with
+    # "'bool' object has no attribute 'strip'".
     with FakeDoorsServer(lambda req: "!!WRONG_STARTER") as srv:
-        assert basic_run_dxl(S_ECHO, srv.port, "#####") is False
+        with pytest.raises(DoorsDxlExecutionError) as exc:
+            basic_run_dxl(S_ECHO, srv.port, "#####")
+    assert "!!WRONG_STARTER" in str(exc.value)
+    assert "return_" in str(exc.value)
+
+
+def test_run_dxl_does_not_rerun_command_on_dxl_error():
+    # The server is alive but the DXL failed: run_dxl must NOT catch the
+    # error and re-execute the command (dangerous for write commands).
+    with FakeDoorsServer(lambda req: "no starter here") as srv:
+        with pytest.raises(DoorsDxlExecutionError):
+            run_dxl("print 1", srv.port, "@<")
+        assert len(srv.requests) == 1
 
 
 def test_basic_run_dxl_strips_payload():
